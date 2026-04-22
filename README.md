@@ -1,50 +1,70 @@
-# Privacy-Preserving Fall Detection Camera System
+# 🛡️ Cam-Censor: Privacy-Preserving Fall Detection
 
-This project processes live security camera feeds (or video files) to completely censor (black out) human bodies for privacy compliance while simultaneously detecting if a person falls down or is crouching in an emergency using YOLOv8 instance segmentation and pose tracking.
+Cam-Censor is a professional-grade security application designed to monitor live camera feeds while maintaining strict individual privacy. It uses **YOLOv8 AI** to detect people and completely censor their bodies with black silhouettes in real-time, while simultaneously monitoring for falls or emergencies.
 
-## Features
-- **Real-Time Patient Censorship**: Uses YOLOv8 Segmentation to precisely map and draw a customized black polygon over any person in the frame, avoiding blocky bounding boxes.
-- **Fall & Crouch Detection**: Automatically tracks individuals and calculates their body aspect ratio. If they switch to a horizontal state (or heavily crouched position) for over 1 second, a flashing emergency alert triggers on the output feed.
-- **Edge-Ready**: Can be run on local centralized servers with NVIDIA GPUs for multiple concurrent camera streams, or on edge AI devices.
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)
+![AI](https://img.shields.io/badge/AI-YOLOv8-orange.svg)
 
-## Installation & Setup
+---
 
-You can install the dependencies using either traditional Python `pip` or using `conda`.
+## 🌟 Key Features
 
-### Method 1: Using Standard PIP (Recommended)
-1. Ensure Python 3.9+ is installed and added to PATH. 
-2. Open a terminal/command prompt in the folder.
-3. Create a python virtual environment:
-   ```bash
-   python -m venv venv
-   ```
-4. Activate the virtual environment:
-   - **Windows (PowerShell)**: `.\venv\Scripts\activate`
-   - **Windows (Command Prompt)**: `.\venv\Scripts\activate.bat`
-   - **Mac/Linux**: `source venv/bin/activate`
-5. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+- **Privacy-First Censorship**: Unlike standard systems that use blocky boxes, Cam-Censor uses pixel-perfect instance segmentation to draw custom black polygons over people.
+- **Skeletal Backup**: Even if a person is partially obscured (e.g., under a blanket), the system uses pose-tracking to draw a "skeletal blob," ensuring identity is never compromised.
+- **Fall Detection**: Automatically triggers a visual alert if a person falls or collapses, based on AI-analyzed body dynamics.
+- **Modern GUI**: A sleek, dark-themed control center built with `customtkinter`.
+- **Windows Executable Support**: Easily package the entire system into a single `.exe` file for distribution.
 
-### Method 2: Using Conda (Anaconda / Miniconda)
-If you prefer Conda, simply run:
+## 🚀 Quick Start
+
+### 1. Installation
+Ensure you have Python 3.9+ installed, then:
+
 ```bash
-conda env create -f environment.yml
-conda activate livecam-human-censor
+git clone https://github.com/your-repo/cam-censor.git
+cd cam-censor
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+pip install customtkinter PyInstaller  # Additional GUI/Build tools
 ```
 
-## Usage Guide
+### 2. Running the App
+Launch the main monitoring console:
+```bash
+python app_gui.py
+```
 
-1. Place your input video file into the project folder. Ensure it is named `test.mp4`.
-2. Run the script from your terminal:
+---
+
+## 📦 Create a Windows Executable (.exe)
+
+To send this app to someone who doesn't have Python, you can package it into a standalone `.exe`.
+
+> [!IMPORTANT]
+> Because PyInstaller packages the local OS environment, you **must** run these steps on a **Windows** machine to generate a `.exe`.
+
+1. Open a terminal in the project folder.
+2. Run the packaging script:
    ```bash
-   python demo.py
+   python package_pyinstaller.py
    ```
-3. The script will automatically download the required YOLOv8 segmentation model (`yolov8n-seg.pt`) on its first run and process the video frame-by-frame.
-4. Once complete, you will find a generated file named `censored_output.mp4` in the project directory featuring the blacked-out privacy masks and flashing fall alerts.
+3. Your standalone app will be created in the `dist/CamCensor.exe` folder.
 
-## Troubleshooting
-- **False Positives in Bed**: The model currently treats `width > height * 0.8` as a fall/crouching position. If the camera angle shows beds, you can easily increase the `conf` threshold in `demo.py` or modify the aspect ratio multiplier to tweak sensitivity.
-- **Doesn't see people**: The AI model's confidence threshold `conf=0.08` allows it to see nearly everything resembling a human. You can raise this if it draws black boxes over objects that aren't humans.
-- **Slow Performance**: Running AI models without a dedicated GPU is intensive and slow. If you want this to run instantly on live feeds, consider using a computer with an NVIDIA RTX graphics card or Jetson device.
+---
+
+## 🏢 Scaling for Security Systems
+
+For "a lot of cameras" (hospital wings, large facilities, etc.), this system can be scaled horizontally:
+
+- **GPU Acceleration**: Use an NVIDIA GPU with CUDA enabled for seamless multi-stream processing.
+- **Nano Models**: The system defaults to **YOLOv8n** (Nano) for the best performance-to-accuracy ratio.
+- **Distributed Architecture**: See the [Scaling Guide](file:///Users/yigitcanyontem/.gemini/antigravity/brain/fe2942ee-1f42-4c1c-bbac-77a4291fc266/scaling_guide.md) for details on handling 20+ concurrent streams.
+
+---
+
+## 🛠️ Troubleshooting
+
+- **Models not loading?**: Ensure `yolov8n.pt` and `yolov8n-seg.pt` are in the root directory. If missing, they will auto-download on the first run.
+- **Slow Performance?**: If you don't have a dedicated GPU, consider lowering the "Floor Sensitivity" in the GUI or using a lower-resolution camera source.

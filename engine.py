@@ -1,12 +1,15 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import os
+import sys
+from utils import get_resource_path
 
 class FallDetectionEngine:
-    def __init__(self, seg_model="yolov8x-seg.pt", pose_model="yolov8s-pose.pt"):
-        print("Loading SKELETAL Silhouette Architecture (X-Large)...")
-        self.seg_model = YOLO(seg_model)
-        self.pose_model = YOLO(pose_model)
+    def __init__(self, seg_model="yolov8n-seg.pt", pose_model="yolov8n.pt"):
+        print("Loading SKELETAL Silhouette Architecture (Nano)...")
+        self.seg_model = YOLO(get_resource_path(seg_model))
+        self.pose_model = YOLO(get_resource_path(pose_model))
         self.fall_tracker = {}
         self.fps = 30.0
         
