@@ -1,9 +1,11 @@
 import cv2
+import os
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import threading
 import time
 import multiprocessing
+import json
 from engine import PrivacyEngine
 
 class CamCensorApp(ctk.CTk):
@@ -63,10 +65,20 @@ class CamCensorApp(ctk.CTk):
         self.settings_card = ctk.CTkFrame(self.sidebar_frame, fg_color="#2b2b2b", corner_radius=12)
         self.settings_card.grid(row=3, column=0, padx=15, pady=10, sticky="ew")
 
-        self.source_label = ctk.CTkLabel(self.settings_card, text="Giriş Kaynağı:", font=ctk.CTkFont(size=13, weight="bold"))
-        self.source_label.pack(padx=15, pady=(15, 5), anchor="w")
         self.source_optionemenu = ctk.CTkOptionMenu(self.settings_card, values=["Taranıyor..."], variable=self.source_var, command=self.change_source)
-        self.source_optionemenu.pack(padx=15, pady=(0, 15), fill="x")
+        self.source_optionemenu.pack(padx=15, pady=(0, 10), fill="x")
+
+        self.rtsp_label = ctk.CTkLabel(self.settings_card, text="IP/RTSP Kamera Ekle:", font=ctk.CTkFont(size=12))
+        self.rtsp_label.pack(padx=15, pady=0, anchor="w")
+        self.rtsp_entry = ctk.CTkEntry(self.settings_card, placeholder_text="rtsp://...", height=30)
+        self.rtsp_entry.pack(padx=15, pady=5, fill="x")
+        self.add_rtsp_button = ctk.CTkButton(self.settings_card, text="AĞDAN EKLE", command=self.add_rtsp_source, 
+                                             fg_color="#34495e", hover_color="#2c3e50")
+        self.add_rtsp_button.pack(padx=15, pady=5, fill="x")
+
+        self.remove_rtsp_button = ctk.CTkButton(self.settings_card, text="SEÇİLİ KAYNAĞI SİL", command=self.remove_current_source, 
+                                                fg_color="#c0392b", hover_color="#a93226")
+        self.remove_rtsp_button.pack(padx=15, pady=(0, 15), fill="x")
 
         # --- Appearance ---
         self.appearance_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
@@ -112,7 +124,13 @@ class CamCensorApp(ctk.CTk):
         # Status Bar
         self.status_bar = ctk.CTkLabel(self, text="Durum: BEKLEMEDE", anchor="w", fg_color="transparent")
         self.status_bar.grid(row=1, column=1, padx=30, pady=(0, 15), sticky="ew")
-
+        self.is_simulation = False
+        self.config_path = "config.json"
+        self.network_cameras = []
+        
+        # Load Existing Configuration
+        self.load_config()
+        
         # Background Preloading
         self.after(100, self.start_preloading)
 
@@ -137,6 +155,13 @@ class CamCensorApp(ctk.CTk):
 
     def init_camera_list(self):
         cameras = self.detect_cameras()
+        
+        # Add persistent network cameras
+        for cam in self.network_cameras:
+            if cam not in cameras:
+                cameras.insert(0, cam)
+                
+        self.available_cameras = cameras
         self.after(0, self.update_camera_menu, cameras)
 
     def update_camera_menu(self, cameras):
@@ -144,6 +169,23 @@ class CamCensorApp(ctk.CTk):
         self.source_optionemenu.configure(values=cameras)
         if cameras:
             self.source_var.set(cameras[0])
+
+    def load_config(self):
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, "r") as f:
+                    config = json.load(f)
+                    self.network_cameras = config.get("network_cameras", [])
+        except Exception as e:
+            print(f"Error loading config: {e}")
+
+    def save_config(self):
+        try:
+            config = {"network_cameras": self.network_cameras}
+            with open(self.config_path, "w") as f:
+                json.dump(config, f, indent=4)
+        except Exception as e:
+            print(f"Error saving config: {e}")
 
     def change_source(self, source):
         if self.is_running:
@@ -205,13 +247,17 @@ class CamCensorApp(ctk.CTk):
         self.video_label = ctk.CTkLabel(self.viewport_frame, text="GÖRÜNTÜ BEKLENİYOR...", font=ctk.CTkFont(size=24))
         self.video_label.grid(row=0, column=0)
 
-        # Extract index from "Kamera X"
-        try:
-            source_str = self.source_var.get()
-            source = int(source_str.split(" ")[1])
-        except:
-            source = 0
-            
+        source_name = self.source_var.get()
+        
+        # Decide index or URL
+        if "Kamera" in source_name and len(source_name.split(" ")) > 1:
+            try:
+                source = int(source_name.split(" ")[1])
+            except ValueError:
+                source = source_name
+        else:
+            source = source_name
+
         self.cap = cv2.VideoCapture(source)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -228,15 +274,22 @@ class CamCensorApp(ctk.CTk):
         self.processing_thread.start()
 
     def start_multi_feed(self):
-        # UI Setup for Grid
-        for widget in self.viewport_frame.winfo_children():
-            widget.destroy()
-            
-        self.multi_caps = []
-        self.multi_engines = []
-        self.grid_labels = []
+        self.stop_feed()
         
-        cams = [int(c.split(" ")[1]) for c in self.available_cameras if "Kamera" in c]
+        # Filter simulation if active
+        if self.is_simulation:
+            cams = [0, 1, 2]
+        else:
+            cams = []
+            for c in self.available_cameras:
+                if "Kamera" in c and "Sim" not in c:
+                    try:
+                        cams.append(int(c.split(" ")[1]))
+                    except:
+                        pass
+                elif c.startswith("rtsp://") or c.startswith("http://"):
+                    cams.append(c)
+        
         if not cams:
             self.video_label.configure(text="KAMERA BULUNAMADI\nLütfen bağlantıları kontrol edip tekrar deneyin.", text_color="red")
             return
@@ -246,7 +299,6 @@ class CamCensorApp(ctk.CTk):
         rows = (num_cams + 1) // 2
         
         # If simulation, same index might repeat. We need separate captures.
-        actual_indices = [int(str(idx).split(" ")[0]) for idx in cams]
 
         self.viewport_frame.grid_columnconfigure((0, 1), weight=1)
         self.viewport_frame.grid_rowconfigure((0, 1), weight=1)
@@ -267,8 +319,8 @@ class CamCensorApp(ctk.CTk):
                     self.grid_labels.append(label)
         else:
             # Real cameras
-            for i, idx in enumerate(actual_indices):
-                cap = cv2.VideoCapture(idx)
+            for i, source in enumerate(cams):
+                cap = cv2.VideoCapture(source)
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                 
@@ -278,7 +330,8 @@ class CamCensorApp(ctk.CTk):
                     self.multi_engines.append(engine)
                     
                     r, c = divmod(i, cols)
-                    label = ctk.CTkLabel(self.viewport_frame, text=f"Kamera {idx} Bekleniyor...", fg_color="black")
+                    label_text = f"Kamera {source}" if isinstance(source, int) else "IP Kamera"
+                    label = ctk.CTkLabel(self.viewport_frame, text=f"{label_text} Bekleniyor...", fg_color="black")
                     label.grid(row=r, column=c, sticky="nsew", padx=2, pady=2)
                     self.grid_labels.append(label)
         
@@ -328,6 +381,29 @@ class CamCensorApp(ctk.CTk):
 
     def update_camera_source(self, choice):
         self.status_bar.configure(text=f"Kaynak Değiştirildi: {choice}", text_color="white")
+
+    def add_rtsp_source(self):
+        url = self.rtsp_entry.get().strip()
+        if url:
+            if url not in self.network_cameras:
+                self.network_cameras.insert(0, url)
+                self.save_config()
+                self.init_camera_list() # Refresh UI
+                self.source_var.set(url)
+                self.rtsp_entry.delete(0, 'end')
+                self.status_bar.configure(text="IP Kamera Kaydedildi", text_color="green")
+            else:
+                self.status_bar.configure(text="Bu kaynak zaten kayıtlı", text_color="yellow")
+
+    def remove_current_source(self):
+        source = self.source_var.get()
+        if source in self.network_cameras:
+            self.network_cameras.remove(source)
+            self.save_config()
+            self.init_camera_list() # Refresh UI
+            self.status_bar.configure(text="Kaynak Silindi", text_color="red")
+        else:
+            self.status_bar.configure(text="Sadece eklenen IP kameraları silebilirsiniz", text_color="yellow")
 
     def video_loop(self):
         failed_frames = 0

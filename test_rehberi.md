@@ -8,7 +8,8 @@ Cam-Censor, bireysel gizliliği koruyarak güvenlik sağlamayı amaçlayan bir y
 ## 🚀 Başlarken
 1. Size gönderilen **Cam-Censor.exe** dosyasını çalıştırın.
 2. Uygulama açıldığında yapay zeka modelleri arka planda otomatik olarak yüklenecektir.
-3. **Kamera Seçimi** menüsünden aktif kameranızı seçin.
+3. **Kamera Seçimi**: Bilgisayarınıza bağlı kameralar listede görünecektir.
+4. **IP Kamera Ekle**: Eğer ağ üzerinden bir IP kamera kullanıyorsanız, "rtsp://..." ile başlayan adresi kutuya yazıp "AĞDAN EKLE" butonuna basın.
 
 ## 🎥 İzleme Modları
 

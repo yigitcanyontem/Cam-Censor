@@ -14,8 +14,8 @@ Geleneksel güvenlik sistemleri, izlenen kişilerin kimliklerini ve mahremiyetle
 ### 👥 Gelişmiş Gizlilik Maskeleme
 Standart kutu (bbox) yöntemi yerine, **YOLOv8-Segmentation** kullanarak insan vücudunu piksel hassasiyetinde siyah silüetlerle kapatır. Identity (kimlik) bilgisi görüntüden tamamen arındırılır.
 
-### 🎥 Gözetim Modu (Multi-Camera)
-Aynı anda birden fazla kamerayı dinamik bir ızgara düzeninde izleyebilir. Her kamera bağımsız bir AI motoruyla denetlenir ve merkezi bir panelden yönetilir.
+### 🎥 Gözetim Modu (Multi-Camera & IP)
+Aynı anda birden fazla yerel veya IP kamerayı (RTSP) dinamik bir ızgara düzeninde izleyebilir. Ağ üzerindeki kameralarınızı RTSP adreslerini girerek sisteme dahil edebilirsiniz.
 
 ### 🛠️ Simülasyon Sistemi
 Tek bir kameranız olsa bile çoklu kamera senaryolarını test edebilmeniz için yerleşik simülasyon moduna sahiptir.
