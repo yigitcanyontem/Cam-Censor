@@ -11,8 +11,8 @@ class FallDetectionApp(ctk.CTk):
         super().__init__()
 
         # --- Basic Setup ---
-        self.title("Gizlilik Esaslı Düşme Takibi")
-        self.geometry("1100x700")
+        self.title("Cam-Censor: Akıllı Gizlilik Koruması")
+        self.geometry("1200x800")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
@@ -21,6 +21,7 @@ class FallDetectionApp(ctk.CTk):
         self.cap = None
         self.is_running = False
         self.is_surveillance = False
+        self.is_simulation = False
         self.multi_caps = []
         self.multi_engines = []
         self.source_var = ctk.StringVar(value="Tarama Yapılıyor...")
@@ -33,40 +34,64 @@ class FallDetectionApp(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
 
         # --- Sidebar ---
-        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self.sidebar_frame = ctk.CTkFrame(self, width=280, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(6, weight=1)
+        self.sidebar_frame.grid_rowconfigure(10, weight=1)
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="DÜŞME TARAYICI", font=ctk.CTkFont(size=20, weight="bold"))
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="CAM-CENSOR", font=ctk.CTkFont(size=24, weight="bold", family="Inter"))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 5))
+        
+        self.subtitle_label = ctk.CTkLabel(self.sidebar_frame, text="7/24 Kesintisiz Güvenlik", font=ctk.CTkFont(size=12))
+        self.subtitle_label.grid(row=1, column=0, padx=20, pady=(0, 20))
 
-        # Source Selection
-        self.source_label = ctk.CTkLabel(self.sidebar_frame, text="Giriş Kaynağı:", anchor="w")
-        self.source_label.grid(row=1, column=0, padx=20, pady=(10, 0))
-        self.source_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Taranıyor..."],
-                                                    variable=self.source_var, command=self.change_source)
-        self.source_optionemenu.grid(row=2, column=0, padx=20, pady=(0, 20))
+        # --- Control Card ---
+        self.control_card = ctk.CTkFrame(self.sidebar_frame, fg_color="#2b2b2b", corner_radius=12)
+        self.control_card.grid(row=2, column=0, padx=15, pady=10, sticky="ew")
 
-        # Floor Sensitivity Slider
-        self.floor_label = ctk.CTkLabel(self.sidebar_frame, text="Zemin Hassasiyeti (Alt %):", anchor="w")
-        self.floor_label.grid(row=4, column=0, padx=20, pady=(10, 0))
-        self.floor_slider = ctk.CTkSlider(self.sidebar_frame, from_=0, to=100, number_of_steps=20, command=self.update_floor_sensitivity)
-        self.floor_slider.set(70) # Default to 70% bottom
-        self.floor_slider.grid(row=5, column=0, padx=20, pady=(0, 20))
+        self.start_button = ctk.CTkButton(self.control_card, text="TAKİBİ BAŞLAT", fg_color="#2ecc71", hover_color="#27ae60", height=45, font=ctk.CTkFont(weight="bold"), command=self.toggle_monitoring)
+        self.start_button.pack(padx=15, pady=(15, 10), fill="x")
 
-        # Control Buttons
-        self.start_button = ctk.CTkButton(self.sidebar_frame, text="TAKİBİ BAŞLAT", fg_color="green", hover_color="darkgreen", command=self.toggle_monitoring)
-        self.start_button.grid(row=4, column=0, padx=20, pady=10)
+        self.surveillance_button = ctk.CTkButton(self.control_card, text="GÖZETİM MODU (TÜMÜ)", fg_color="#9b59b6", hover_color="#8e44ad", height=45, font=ctk.CTkFont(weight="bold"), command=self.toggle_surveillance)
+        self.surveillance_button.pack(padx=15, pady=(0, 15), fill="x")
 
-        self.surveillance_button = ctk.CTkButton(self.sidebar_frame, text="GÖZETİM MODU (TÜMÜ)", fg_color="purple", hover_color="darkmagenta", command=self.toggle_surveillance)
-        self.surveillance_button.grid(row=5, column=0, padx=20, pady=10)
+        # --- Settings Card ---
+        self.settings_card = ctk.CTkFrame(self.sidebar_frame, fg_color="#2b2b2b", corner_radius=12)
+        self.settings_card.grid(row=3, column=0, padx=15, pady=10, sticky="ew")
 
-        # Settings
-        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Görünüm:", anchor="w")
-        self.appearance_mode_label.grid(row=6, column=0, padx=20, pady=(10, 0))
-        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Koyu", "Açık", "Sistem"],
-                                                            command=self.change_appearance_mode)
-        self.appearance_mode_optionemenu.grid(row=7, column=0, padx=20, pady=(0, 20))
+        self.source_label = ctk.CTkLabel(self.settings_card, text="Giriş Kaynağı:", font=ctk.CTkFont(size=13, weight="bold"))
+        self.source_label.pack(padx=15, pady=(15, 5), anchor="w")
+        self.source_optionemenu = ctk.CTkOptionMenu(self.settings_card, values=["Taranıyor..."], variable=self.source_var, command=self.change_source)
+        self.source_optionemenu.pack(padx=15, pady=(0, 15), fill="x")
+
+        self.floor_label = ctk.CTkLabel(self.settings_card, text="Zemin Hassasiyeti:", font=ctk.CTkFont(size=13, weight="bold"))
+        self.floor_label.pack(padx=15, pady=(5, 0), anchor="w")
+        self.floor_slider = ctk.CTkSlider(self.settings_card, from_=0, to=100, number_of_steps=20, command=self.update_floor_sensitivity)
+        self.floor_slider.set(70)
+        self.floor_slider.pack(padx=15, pady=(5, 20), fill="x")
+
+        # --- Appearance ---
+        self.appearance_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
+        self.appearance_frame.grid(row=8, column=0, padx=15, pady=10, sticky="ew")
+        
+        self.appearance_mode_label = ctk.CTkLabel(self.appearance_frame, text="Görünüm:", font=ctk.CTkFont(size=12))
+        self.appearance_mode_label.pack(side="left", padx=(5, 5))
+        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.appearance_frame, values=["Koyu", "Açık", "Sistem"], width=120, command=self.change_appearance_mode)
+        self.appearance_mode_optionemenu.pack(side="left", fill="x", expand=True)
+
+        self.sim_switch = ctk.CTkSwitch(self.sidebar_frame, text="Simülasyon Modu", command=self.toggle_simulation)
+        self.sim_switch.grid(row=9, column=0, padx=15, pady=10, sticky="ew")
+
+        # --- Tip Section ---
+        self.tip_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="#3d3d3d", corner_radius=8)
+        self.tip_frame.grid(row=10, column=0, padx=15, pady=20, sticky="s")
+        
+        self.tip_label = ctk.CTkLabel(self.tip_frame, text="KULLANIM REHBERİ:\n\n"
+                                      "• Takibi Başlat: Seçili tek kamerayı izler.\n"
+                                      "• Gözetim Modu: Tüm kameraları ızgara düzeninde aynı anda izler.\n"
+                                      "• Simülasyon: Tek kamerayı test için 3 adetmiş gibi gösterir.\n"
+                                      "• Zemin Hassasiyeti: Kameranın açısına göre düşme eşiğini belirler (%70 önerilir).", 
+                                      wraplength=240, font=ctk.CTkFont(size=11), text_color="#bbbbbb", justify="left")
+        self.tip_label.pack(padx=10, pady=10)
 
         # --- Main Viewport ---
         self.viewport_frame = ctk.CTkFrame(self, fg_color="black")
@@ -87,6 +112,10 @@ class FallDetectionApp(ctk.CTk):
     def change_appearance_mode(self, mode):
         modes = {"Koyu": "Dark", "Açık": "Light", "Sistem": "System"}
         ctk.set_appearance_mode(modes.get(mode, "Dark"))
+
+    def toggle_simulation(self):
+        self.is_simulation = self.sim_switch.get()
+        self.init_camera_list()
 
     def start_preloading(self):
         # 1. Start Camera Detection in Thread
@@ -122,9 +151,13 @@ class FallDetectionApp(ctk.CTk):
             self.video_label.configure(text="BAŞLATILMASI BEKLENİYOR...", image=None)
 
     def toggle_monitoring(self):
+        # If in surveillance mode, stop it first
         if self.is_surveillance:
             self.stop_feed()
-        
+            # Wait a bit and start single feed
+            self.after(300, self.toggle_monitoring)
+            return
+
         if not self.is_running:
             if self.is_preloading:
                 self.status_bar.configure(text="Durum: MODELLERİN YÜKLENMESİ BEKLENİYOR...", text_color="yellow")
@@ -135,6 +168,13 @@ class FallDetectionApp(ctk.CTk):
             self.stop_feed()
 
     def toggle_surveillance(self):
+        # If in single monitoring mode, stop it first
+        if self.is_running and not self.is_surveillance:
+            self.stop_feed()
+            # Wait a bit and start surveillance
+            self.after(300, self.toggle_surveillance)
+            return
+
         if not self.is_running:
             if self.is_preloading:
                 self.status_bar.configure(text="Durum: MODELLERİN YÜKLENMESİ BEKLENİYOR...", text_color="yellow")
@@ -146,6 +186,10 @@ class FallDetectionApp(ctk.CTk):
 
     def detect_cameras(self):
         self.after(0, lambda: self.status_bar.configure(text="Durum: KAMERALAR TARANIYOR...", text_color="yellow"))
+        
+        if self.is_simulation:
+            return ["Kamera 0", "Kamera 1 (Sim)", "Kamera 2 (Sim)"]
+            
         available = []
         for i in range(4):
             cap = cv2.VideoCapture(i)
@@ -200,31 +244,52 @@ class FallDetectionApp(ctk.CTk):
         cams = [int(c.split(" ")[1]) for c in self.available_cameras if "Kamera" in c]
         if not cams:
             self.status_bar.configure(text="Durum: HATA (Kamera bulunamadı)", text_color="red")
+            self.video_label.configure(text="KAMERA BULUNAMADI\nLütfen bağlantıları kontrol edip tekrar deneyin.", text_color="red")
             return
             
         num_cams = len(cams)
         cols = 2 if num_cams > 1 else 1
         rows = (num_cams + 1) // 2
         
+        # If simulation, same index might repeat. We need separate captures.
+        actual_indices = [int(str(idx).split(" ")[0]) for idx in cams]
+
         self.viewport_frame.grid_columnconfigure((0, 1), weight=1)
         self.viewport_frame.grid_rowconfigure((0, 1), weight=1)
 
-        for i, idx in enumerate(cams):
-            cap = cv2.VideoCapture(idx)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            
+        if self.is_simulation:
+            # Simulation: Open index 0 once, create 3 engines
+            cap = cv2.VideoCapture(0)
             if cap.isOpened():
                 self.multi_caps.append(cap)
-                engine = FallDetectionEngine()
-                engine.set_floor_level(self.floor_slider.get())
-                engine.set_fps(cap.get(cv2.CAP_PROP_FPS))
-                self.multi_engines.append(engine)
+                for i in range(3):
+                    engine = FallDetectionEngine()
+                    engine.set_floor_level(self.floor_slider.get())
+                    engine.set_fps(cap.get(cv2.CAP_PROP_FPS))
+                    self.multi_engines.append(engine)
+                    
+                    r, c = divmod(i, cols)
+                    label = ctk.CTkLabel(self.viewport_frame, text=f"Sim Kamera {i} Bekleniyor...", fg_color="black")
+                    label.grid(row=r, column=c, sticky="nsew", padx=2, pady=2)
+                    self.grid_labels.append(label)
+        else:
+            # Real cameras
+            for i, idx in enumerate(actual_indices):
+                cap = cv2.VideoCapture(idx)
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                 
-                r, c = divmod(i, cols)
-                label = ctk.CTkLabel(self.viewport_frame, text=f"Kamera {idx} Bekleniyor...", fg_color="black")
-                label.grid(row=r, column=c, sticky="nsew", padx=2, pady=2)
-                self.grid_labels.append(label)
+                if cap.isOpened():
+                    self.multi_caps.append(cap)
+                    engine = FallDetectionEngine()
+                    engine.set_floor_level(self.floor_slider.get())
+                    engine.set_fps(cap.get(cv2.CAP_PROP_FPS))
+                    self.multi_engines.append(engine)
+                    
+                    r, c = divmod(i, cols)
+                    label = ctk.CTkLabel(self.viewport_frame, text=f"Kamera {idx} Bekleniyor...", fg_color="black")
+                    label.grid(row=r, column=c, sticky="nsew", padx=2, pady=2)
+                    self.grid_labels.append(label)
         
         if not self.multi_caps:
             self.status_bar.configure(text="Durum: HATA (Kameralar açılamadı)", text_color="red")
@@ -235,9 +300,13 @@ class FallDetectionApp(ctk.CTk):
         self.surveillance_button.configure(text="GÖZETİMİ DURDUR", fg_color="red", hover_color="darkred")
         self.status_bar.configure(text="Durum: GÖZETİM MODU AKTİF", text_color="cyan")
         
-        for i in range(len(self.multi_caps)):
-            t = threading.Thread(target=self.multi_video_loop, args=(i,), daemon=True)
+        if self.is_simulation:
+            t = threading.Thread(target=self.simulation_loop, daemon=True)
             t.start()
+        else:
+            for i in range(len(self.multi_caps)):
+                t = threading.Thread(target=self.multi_video_loop, args=(i,), daemon=True)
+                t.start()
 
     def stop_feed(self):
         self.is_running = False
@@ -350,15 +419,78 @@ class FallDetectionApp(ctk.CTk):
             )
             
             img_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
+            
+            # Draw Label on Frame
+            source_idx = self.available_cameras[index].split(" ")[1]
+            cv2.putText(img_rgb, f"KAMERA {source_idx}", (20, 40), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3)
+            
             img_pil = Image.fromarray(img_rgb)
             
-            # Grid scaling
-            w = self.viewport_frame.winfo_width() // 2
-            h = self.viewport_frame.winfo_height() // ((len(self.multi_caps) + 1) // 2)
-            if w < 100 or h < 100: w, h = 320, 240
+            # Aspect Ratio aware scaling
+            target_w = self.viewport_frame.winfo_width() // 2
+            target_h = self.viewport_frame.winfo_height() // ((len(self.multi_caps) + 1) // 2)
+            if target_w < 100 or target_h < 100: target_w, target_h = 320, 240
             
-            ctk_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(w-10, h-10))
+            orig_w, orig_h = img_pil.size
+            aspect = orig_w / orig_h
+            if target_w / target_h > aspect:
+                new_h = target_h - 10
+                new_w = int(new_h * aspect)
+            else:
+                new_w = target_w - 10
+                new_h = int(new_w / aspect)
+            
+            ctk_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(new_w, new_h))
             self.after(0, lambda img=ctk_img, lbl=label: lbl.configure(image=img, text=""))
+            
+            time.sleep(0.001)
+
+    def simulation_loop(self):
+        cap = self.multi_caps[0]
+        engines = self.multi_engines
+        labels = self.grid_labels
+        frame_count = 0
+        
+        while self.is_running:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.01)
+                continue
+
+            frame_count += 1
+            
+            # For simulation, we process the same frame with multiple engines
+            for i in range(len(engines)):
+                # Copy frame to avoid engines interfering with each other's drawings
+                f_copy = frame.copy()
+                processed_frame, _ = engines[i].process_frame(
+                    f_copy, frame_count, censor=True, draw_alert=True
+                )
+                
+                img_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
+                cv2.putText(img_rgb, f"KAMERA {i} (SIM)", (20, 40), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3)
+                
+                img_pil = Image.fromarray(img_rgb)
+                
+                # Aspect Ratio aware scaling
+                target_w = self.viewport_frame.winfo_width() // 2
+                target_h = self.viewport_frame.winfo_height() // 2 # 2 cams or 3 cams simulation
+                if target_w < 100 or target_h < 100: target_w, target_h = 320, 240
+                
+                orig_w, orig_h = img_pil.size
+                aspect = orig_w / orig_h
+                if target_w / target_h > aspect:
+                    new_h = target_h - 10
+                    new_w = int(new_h * aspect)
+                else:
+                    new_w = target_w - 10
+                    new_h = int(new_w / aspect)
+                
+                ctk_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(new_w, new_h))
+                # Use a specific lambda to capture local loop variables
+                self.after(0, lambda img=ctk_img, lbl=labels[i]: lbl.configure(image=img, text=""))
             
             time.sleep(0.001)
 
