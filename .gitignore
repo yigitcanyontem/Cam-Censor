@@ -2,3 +2,5 @@
 /*.mp4
 /debug_frames*
 *.pt
+
+/venv

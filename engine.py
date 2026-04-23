@@ -33,8 +33,10 @@ class FallDetectionEngine:
         # 1. Run Pose Tracking (Accuracy & Skeletal Silhouettes)
         pose_results = self.pose_model.track(frame, conf=conf, classes=[0], persist=True, verbose=False)
         
-        # 2. Run Segmentation (Pixel-Perfect Silhouettes)
-        seg_results = self.seg_model.track(frame, conf=0.01, classes=[0], persist=True, verbose=False)
+        # 2. Run Segmentation (Pixel-Perfect Silhouettes) - Only if censoring
+        seg_results = []
+        if censor:
+            seg_results = self.seg_model.track(frame, conf=0.01, classes=[0], persist=True, verbose=False)
         
         fall_detected = False
         FALL_FRAME_THRESHOLD = int(self.fps * 0.8)
@@ -105,7 +107,7 @@ class FallDetectionEngine:
 
         if draw_alert and fall_detected:
             if frame_count % int(self.fps // 2) < int(self.fps // 4):
-                cv2.putText(frame, "EMERGENCY: FALL DETECTED!", (50, 100), 
+                cv2.putText(frame, "ACIL DURUM: DUSME ALGILANDI!", (50, 100), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
                 
         return frame, fall_detected

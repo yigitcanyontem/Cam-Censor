@@ -11,18 +11,19 @@ class FallDetectionApp(ctk.CTk):
         super().__init__()
 
         # --- Basic Setup ---
-        self.title("Privacy-Safe Fall Monitoring")
+        self.title("Gizlilik Esaslı Düşme Takibi")
         self.geometry("1100x700")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
         # --- Engine & Variables ---
-        self.engine = None # Initialize on start for faster GUI launch
+        self.engine = None
         self.cap = None
         self.is_running = False
-        self.privacy_enabled = ctk.BooleanVar(value=True)
-        self.source_var = ctk.StringVar(value="Camera")
+        self.source_var = ctk.StringVar(value="Tarama Yapılıyor...")
         self.frame_count = 0
+        self.available_cameras = []
+        self.is_preloading = True
 
         # --- Layout (Grid) ---
         self.grid_columnconfigure(1, weight=1)
@@ -33,37 +34,33 @@ class FallDetectionApp(ctk.CTk):
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(6, weight=1)
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="FALL SCANNER", font=ctk.CTkFont(size=20, weight="bold"))
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="DÜŞME TARAYICI", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
         # Source Selection
-        self.source_label = ctk.CTkLabel(self.sidebar_frame, text="Input Source:", anchor="w")
+        self.source_label = ctk.CTkLabel(self.sidebar_frame, text="Giriş Kaynağı:", anchor="w")
         self.source_label.grid(row=1, column=0, padx=20, pady=(10, 0))
-        self.source_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Camera 1 (Default)", "Camera 2", "Camera 3"],
+        self.source_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Taranıyor..."],
                                                     variable=self.source_var, command=self.change_source)
         self.source_optionemenu.grid(row=2, column=0, padx=20, pady=(0, 20))
 
-        # Privacy Toggle
-        self.privacy_switch = ctk.CTkSwitch(self.sidebar_frame, text="Privacy Censorship", variable=self.privacy_enabled)
-        self.privacy_switch.grid(row=3, column=0, padx=20, pady=10)
-
         # Floor Sensitivity Slider
-        self.floor_label = ctk.CTkLabel(self.sidebar_frame, text="Floor Sensitivity (Bottom %):", anchor="w")
+        self.floor_label = ctk.CTkLabel(self.sidebar_frame, text="Zemin Hassasiyeti (Alt %):", anchor="w")
         self.floor_label.grid(row=4, column=0, padx=20, pady=(10, 0))
         self.floor_slider = ctk.CTkSlider(self.sidebar_frame, from_=0, to=100, number_of_steps=20, command=self.update_floor_sensitivity)
         self.floor_slider.set(70) # Default to 70% bottom
         self.floor_slider.grid(row=5, column=0, padx=20, pady=(0, 20))
 
         # Control Buttons
-        self.start_button = ctk.CTkButton(self.sidebar_frame, text="START MONITORING", fg_color="green", hover_color="darkgreen", command=self.toggle_monitoring)
-        self.start_button.grid(row=6, column=0, padx=20, pady=10)
+        self.start_button = ctk.CTkButton(self.sidebar_frame, text="TAKİBİ BAŞLAT", fg_color="green", hover_color="darkgreen", command=self.toggle_monitoring)
+        self.start_button.grid(row=4, column=0, padx=20, pady=20)
 
         # Settings
-        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance:", anchor="w")
-        self.appearance_mode_label.grid(row=7, column=0, padx=20, pady=(10, 0))
-        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Dark", "Light", "System"],
-                                                            command=lambda m: ctk.set_appearance_mode(m))
-        self.appearance_mode_optionemenu.grid(row=8, column=0, padx=20, pady=(0, 20))
+        self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Görünüm:", anchor="w")
+        self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
+        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Koyu", "Açık", "Sistem"],
+                                                            command=self.change_appearance_mode)
+        self.appearance_mode_optionemenu.grid(row=6, column=0, padx=20, pady=(0, 20))
 
         # --- Main Viewport ---
         self.viewport_frame = ctk.CTkFrame(self, fg_color="black")
@@ -71,50 +68,95 @@ class FallDetectionApp(ctk.CTk):
         self.viewport_frame.grid_rowconfigure(0, weight=1)
         self.viewport_frame.grid_columnconfigure(0, weight=1)
 
-        self.video_label = ctk.CTkLabel(self.viewport_frame, text="WAITING FOR FEED...", font=ctk.CTkFont(size=24))
+        self.video_label = ctk.CTkLabel(self.viewport_frame, text="GÖRÜNTÜ BEKLENİYOR...", font=ctk.CTkFont(size=24))
         self.video_label.grid(row=0, column=0)
 
         # Status Bar
-        self.status_bar = ctk.CTkLabel(self, text="Status: IDLE", anchor="w", fg_color="transparent")
+        self.status_bar = ctk.CTkLabel(self, text="Durum: BEKLEMEDE", anchor="w", fg_color="transparent")
         self.status_bar.grid(row=1, column=1, padx=20, pady=(0, 10), sticky="ew")
+
+        # Background Preloading
+        self.after(100, self.start_preloading)
+
+    def change_appearance_mode(self, mode):
+        modes = {"Koyu": "Dark", "Açık": "Light", "Sistem": "System"}
+        ctk.set_appearance_mode(modes.get(mode, "Dark"))
+
+    def start_preloading(self):
+        # 1. Start Camera Detection in Thread
+        threading.Thread(target=self.init_camera_list, daemon=True).start()
+        # 2. Start Engine/AI Loading in Thread
+        threading.Thread(target=self.preload_engine, daemon=True).start()
+
+    def preload_engine(self):
+        if self.engine is None:
+            self.after(0, lambda: self.status_bar.configure(text="Durum: YAPAY ZEKA MODELLERİ YÜKLENİYOR...", text_color="yellow"))
+            self.engine = FallDetectionEngine()
+            self.engine.set_floor_level(self.floor_slider.get())
+            self.is_preloading = False
+            self.after(0, lambda: self.status_bar.configure(text="Durum: MODELLER HAZIR", text_color="green"))
+            self.after(2000, lambda: self.status_bar.configure(text="Durum: BEKLEMEDE", text_color="white"))
+
+    def init_camera_list(self):
+        cameras = self.detect_cameras()
+        self.after(0, self.update_camera_menu, cameras)
+
+    def update_camera_menu(self, cameras):
+        self.available_cameras = cameras
+        self.source_optionemenu.configure(values=cameras)
+        if cameras:
+            self.source_var.set(cameras[0])
+        self.status_bar.configure(text="Durum: BEKLEMEDE", text_color="white")
 
     def change_source(self, source):
         if self.is_running:
             self.stop_feed()
-            self.toggle_monitoring()
+            self.after(500, self.start_feed)
+        else:
+            self.video_label.configure(text="BAŞLATILMASI BEKLENİYOR...", image=None)
 
     def toggle_monitoring(self):
         if not self.is_running:
+            if self.is_preloading:
+                self.status_bar.configure(text="Durum: MODELLERİN YÜKLENMESİ BEKLENİYOR...", text_color="yellow")
+                # Check again in 500ms
+                self.after(500, self.toggle_monitoring)
+                return
             self.start_feed()
         else:
             self.stop_feed()
 
-    def start_feed(self):
-        # Map menu text to camera indices
-        source_map = {
-            "Camera 1 (Default)": 0,
-            "Camera 2": 1,
-            "Camera 3": 2
-        }
-        source = source_map.get(self.source_var.get(), 0)
-        
-        # Load engine if not loaded yet
-        if self.engine is None:
-            self.status_bar.configure(text="Status: LOADING AI MODELS (Pose + Seg)...", text_color="yellow")
-            self.update() # Force UI refresh
-            self.engine = FallDetectionEngine()
-            # Apply current slider value on load
-            self.engine.set_floor_level(self.floor_slider.get())
+    def detect_cameras(self):
+        self.after(0, lambda: self.status_bar.configure(text="Durum: KAMERALAR TARANIYOR...", text_color="yellow"))
+        available = []
+        for i in range(4):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                ret, _ = cap.read()
+                if ret:
+                    available.append(f"Kamera {i}")
+                cap.release()
+        return available if available else ["Kamera Bulunamadı"]
 
+    def start_feed(self):
+        # Extract index from "Kamera X"
+        try:
+            source_str = self.source_var.get()
+            source = int(source_str.split(" ")[1])
+        except:
+            source = 0
+            
         self.cap = cv2.VideoCapture(source)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         
         if not self.cap.isOpened():
-            self.status_bar.configure(text=f"Status: ERROR (Source not found: {source})", text_color="red")
+            self.status_bar.configure(text=f"Durum: HATA (Kaynak bulunamadı: {source})", text_color="red")
             return
 
         self.is_running = True
-        self.start_button.configure(text="STOP MONITORING", fg_color="red", hover_color="darkred")
-        self.status_bar.configure(text="Status: MONITORING ACTIVE", text_color="cyan")
+        self.start_button.configure(text="TAKİBİ DURDUR", fg_color="red", hover_color="darkred")
+        self.status_bar.configure(text="Durum: TAKİP AKTİF", text_color="cyan")
         self.engine.reset_tracker()
         self.engine.set_fps(self.cap.get(cv2.CAP_PROP_FPS))
         
@@ -123,17 +165,21 @@ class FallDetectionApp(ctk.CTk):
 
     def stop_feed(self):
         self.is_running = False
+        # Small delay to allow thread to observe is_running=False
+        self.after(100, self._release_cap)
+
+    def _release_cap(self):
         if self.cap:
             self.cap.release()
             self.cap = None
-        self.start_button.configure(text="START MONITORING", fg_color="green", hover_color="darkgreen")
-        self.status_bar.configure(text="Status: IDLE", text_color="white")
-        self.video_label.configure(text="FEED STOPPED", image=None)
+        self.start_button.configure(text="TAKİBİ BAŞLAT", fg_color="green", hover_color="darkgreen")
+        self.status_bar.configure(text="Durum: BEKLEMEDE", text_color="white")
+        self.video_label.configure(text="TAKİP DURDURULDU", image=None)
 
     def update_floor_sensitivity(self, value):
         if self.engine:
             self.engine.set_floor_level(value)
-            self.status_bar.configure(text=f"Status: Floor Sensitivity set to {int(value)}%")
+            self.status_bar.configure(text=f"Durum: Zemin Hassasiyeti %{int(value)} olarak ayarlandı")
 
     def video_loop(self):
         failed_frames = 0
@@ -142,12 +188,12 @@ class FallDetectionApp(ctk.CTk):
             if not ret:
                 failed_frames += 1
                 if failed_frames > 30: # ~1 second of failure
-                    self.after(0, lambda: self.status_bar.configure(text="Status: WAITING FOR DATA (Check Camera)", text_color="yellow"))
+                    self.after(0, lambda: self.status_bar.configure(text="Durum: VERİ BEKLENİYOR (Kamerayı Kontrol Edin)", text_color="yellow"))
                 time.sleep(0.01)
                 continue
 
             if failed_frames > 0:
-                self.after(0, lambda: self.status_bar.configure(text="Status: MONITORING ACTIVE", text_color="cyan"))
+                self.after(0, lambda: self.status_bar.configure(text="Durum: TAKİP AKTİF", text_color="cyan"))
                 failed_frames = 0
 
             # Frame Processing
@@ -156,7 +202,7 @@ class FallDetectionApp(ctk.CTk):
             processed_frame, fall_detected = self.engine.process_frame(
                 frame, 
                 self.frame_count, 
-                censor=self.privacy_enabled.get(),
+                censor=True, # Privacy is always enabled
                 draw_alert=True
             )
             
@@ -164,13 +210,14 @@ class FallDetectionApp(ctk.CTk):
             
             # Update Status if Fall Detected
             if fall_detected:
-                self.after(0, lambda: self.status_bar.configure(text="ALERT: FALL DETECTED!", text_color="orange"))
+                self.after(0, lambda: self.status_bar.configure(text="ALARM: DÜŞME ALGILANDI!", text_color="orange"))
             else:
-                self.after(0, lambda: self.status_bar.configure(text="Status: MONITORING ACTIVE", text_color="cyan"))
+                self.after(0, lambda: self.status_bar.configure(text="Durum: TAKİP AKTİF", text_color="cyan"))
 
             # Convert to RGB for Tkinter
             img_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
             img_pil = Image.fromarray(img_rgb)
+            
             
             # Use CTkImage for scaling support
             w, h = self.viewport_frame.winfo_width(), self.viewport_frame.winfo_height()
@@ -192,7 +239,9 @@ class FallDetectionApp(ctk.CTk):
             # but it doesn't hurt.
 
     def on_closing(self):
-        self.stop_feed()
+        self.is_running = False
+        if self.cap:
+            self.cap.release()
         self.destroy()
 
 if __name__ == "__main__":
