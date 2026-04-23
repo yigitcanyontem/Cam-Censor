@@ -3,6 +3,7 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 import threading
 import time
+import multiprocessing
 from engine import FallDetectionEngine
 
 class FallDetectionApp(ctk.CTk):
@@ -38,7 +39,7 @@ class FallDetectionApp(ctk.CTk):
         # Source Selection
         self.source_label = ctk.CTkLabel(self.sidebar_frame, text="Input Source:", anchor="w")
         self.source_label.grid(row=1, column=0, padx=20, pady=(10, 0))
-        self.source_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Camera", "File (test.mp4)"],
+        self.source_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Camera 1 (Default)", "Camera 2", "Camera 3"],
                                                     variable=self.source_var, command=self.change_source)
         self.source_optionemenu.grid(row=2, column=0, padx=20, pady=(0, 20))
 
@@ -89,7 +90,13 @@ class FallDetectionApp(ctk.CTk):
             self.stop_feed()
 
     def start_feed(self):
-        source = 0 if self.source_var.get() == "Camera" else "test.mp4"
+        # Map menu text to camera indices
+        source_map = {
+            "Camera 1 (Default)": 0,
+            "Camera 2": 1,
+            "Camera 3": 2
+        }
+        source = source_map.get(self.source_var.get(), 0)
         
         # Load engine if not loaded yet
         if self.engine is None:
@@ -129,20 +136,22 @@ class FallDetectionApp(ctk.CTk):
             self.status_bar.configure(text=f"Status: Floor Sensitivity set to {int(value)}%")
 
     def video_loop(self):
+        failed_frames = 0
         while self.is_running:
             ret, frame = self.cap.read()
             if not ret:
-                if self.source_var.get() == "Camera":
-                    time.sleep(0.01)
-                    continue
-                else:
-                    self.is_running = False
-                    self.after(0, self.stop_feed)
-                    break
+                failed_frames += 1
+                if failed_frames > 30: # ~1 second of failure
+                    self.after(0, lambda: self.status_bar.configure(text="Status: WAITING FOR DATA (Check Camera)", text_color="yellow"))
+                time.sleep(0.01)
+                continue
+
+            if failed_frames > 0:
+                self.after(0, lambda: self.status_bar.configure(text="Status: MONITORING ACTIVE", text_color="cyan"))
+                failed_frames = 0
 
             # Frame Processing
             self.frame_count += 1
-            # Run engine processing
             # We pass 'censor=privacy_enabled.get()' to the engine
             processed_frame, fall_detected = self.engine.process_frame(
                 frame, 
@@ -173,9 +182,8 @@ class FallDetectionApp(ctk.CTk):
             # Update Label (GUI thread)
             self.after(0, self.update_video, ctk_img)
             
-            # Control Frame Rate for Video Files
-            if self.source_var.get() != "Camera":
-                time.sleep(1/max(1, self.engine.fps))
+            # Control Frame Rate (mostly for file playback, but keep for stability)
+            time.sleep(0.001) 
 
     def update_video(self, ctk_img):
         if self.is_running:
@@ -188,6 +196,9 @@ class FallDetectionApp(ctk.CTk):
         self.destroy()
 
 if __name__ == "__main__":
+    # Essential for PyInstaller + Multiprocessing (used internally by YOLO/OpenCV)
+    multiprocessing.freeze_support()
+    
     app = FallDetectionApp()
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
